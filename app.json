@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "a8fa337f-e66f-452e-b40c-97a08fe13d4f"
+      }
+    },
+    "android": {
+      "package": "com.liamhigh.verumuploadportal"
+    }
+  }
+}
