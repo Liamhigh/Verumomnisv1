@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="foundation.verumglobal.app">
+    <application
+        android:label="Verum Omnis"
+        android:icon="@mipmap/ic_launcher">
+        <!-- Your main activity should already exist in the project; if not, add one later -->
+    </application>
+</manifest>
