@@ -1,0 +1,64 @@
+name: EAS Android Release (Expo)
+
+on:
+  push:
+    branches: [ "ci-build", "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  android-release:
+    runs-on: ubuntu-latest
+    env:
+      # Auth for Expo/EAS
+      EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+      EXPO_TOKEN: ${{ secrets.EAS_TOKEN }}
+      # Make CI installs quieter/faster
+      CI: true
+      NPM_CONFIG_FUND: false
+      NPM_CONFIG_AUDIT: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps (npm ci if lockfile exists)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm i
+          fi
+
+      - name: Verify EAS token present
+        run: |
+          if [ -z "${EAS_TOKEN}" ]; then
+            echo "EAS_TOKEN is missing. Add it in GitHub -> Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Install EAS CLI
+        run: npm i -g eas-cli
+
+      - name: Configure Expo/EAS project (noop if already configured)
+        run: |
+          # This won’t overwrite existing config; it just ensures project linking.
+          npx expo whoami || true
+          # If your project already has eas.json and app.json/app.config.*, this is enough.
+
+      - name: Build Android Release (EAS)
+        run: |
+          # Uses the "production" profile from eas.json; change if your profile name differs.
+          # --wait will block until finished, and --non-interactive avoids prompts.
+          # --local is NOT used; the build runs on Expo’s cloud builders.
+          eas build -p android --profile production --non-interactive --wait --output artifact.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VerumOmnis-android-release
+          path: artifact.apk
