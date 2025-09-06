@@ -30,9 +30,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android platforms/build-tools (explicit)
+      # Install a wider set of SDKs to avoid compile/target mismatch
+      - name: Install Android platforms/build-tools
         run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platform-tools" \
+                     "platforms;android-35" "build-tools;35.0.0" \
+                     "platforms;android-34" "build-tools;34.0.0"
           yes | sdkmanager --licenses
 
       - name: Install JS deps
@@ -43,34 +46,56 @@ jobs:
             npm i
           fi
 
+      # Detect whether android/ already exists
       - name: Detect android/gradlew
         id: detect
         run: |
           if [ -f android/gradlew ]; then
             echo "mode=gradle" >> "$GITHUB_OUTPUT"
           else
-            echo "mode=expo" >> "$GITHUB_OUTPUT"
+            echo "mode=expo"   >> "$GITHUB_OUTPUT"
           fi
+          echo "Detected mode: $(cat $GITHUB_OUTPUT || true)"
 
-      - name: Expo prebuild (Android) if needed
+      # Create android/ via Expo if needed
+      - name: Expo prebuild (Android) – only if needed
         if: steps.detect.outputs.mode == 'expo'
         run: |
           npx --yes expo@latest prebuild --platform android --no-install --non-interactive
-          test -f android/gradlew || (echo "android/gradlew missing after prebuild" && exit 1)
+          test -f android/gradlew || (echo "ERROR: android/gradlew missing after prebuild" && ls -la android || true && exit 1)
 
-      - name: Print layout
+      # Make sure gradlew is executable (permissions sometimes lost)
+      - name: Ensure gradlew is executable
+        run: |
+          if [ -f android/gradlew ]; then
+            chmod +x android/gradlew
+          fi
+
+      # Print tree so we can see what exists
+      - name: Print project layout
         run: |
           ls -la
           ls -la android || true
           ls -la android/app || true
+          find android -maxdepth 3 -type f -name "build.gradle*" -print || true
 
-      - name: Gradle assembleDebug (with stacktrace)
+      # Some projects need explicit compile/target SDKs; inject if missing
+      - name: Ensure compile/target SDK hints (no-op if already present)
+        run: |
+          if [ -f android/app/build.gradle ]; then
+            if ! grep -q "compileSdkVersion" android/app/build.gradle; then
+              echo "android { compileSdkVersion 34; defaultConfig { targetSdkVersion 34 } }" >> android/app/build.gradle
+            fi
+          fi
+
+      - name: Gradle assembleDebug (verbose)
         working-directory: android
         run: |
           echo "org.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvm.options=-Xmx1024m" >> gradle.properties
           ./gradlew --version
           ./gradlew assembleDebug --stacktrace --no-daemon
 
+      # Upload any APK Gradle produced (path can vary slightly)
       - name: Upload APK artifact
         if: always()
         uses: actions/upload-artifact@v4
