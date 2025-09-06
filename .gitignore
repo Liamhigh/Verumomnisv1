@@ -1,0 +1,4 @@
+verum-release.keystore
+verum-release.keystore.b64
+*.jks
+*.keystore
