@@ -1,4 +1,4 @@
-name: Build Android APK (Expo prebuild -> Gradle debug)
+name: Build Android APK (auto: Gradle or Expo prebuild)
 
 on:
   push:
@@ -33,7 +33,6 @@ jobs:
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses
 
-      # If your package-lock.json exists, CI install is faster & reproducible
       - name: Install JS deps
         run: |
           if [ -f package-lock.json ]; then
@@ -42,14 +41,26 @@ jobs:
             npm i
           fi
 
-      # Turn Expo project into native Android (no cloud; runs locally in CI)
-      - name: Expo prebuild (Android)
-        run: npx expo prebuild --platform android --no-install --non-interactive
+      - name: Detect android/gradlew
+        id: detect
+        run: |
+          if [ -f android/gradlew ]; then
+            echo "mode=gradle" >> $GITHUB_OUTPUT
+          else
+            echo "mode=expo" >> $GITHUB_OUTPUT
+          fi
 
-      # Build debug APK (signed with debug keystore automatically)
-      - name: Build app-debug.apk
+      - name: Build with Gradle (debug)
+        if: steps.detect.outputs.mode == 'gradle'
         working-directory: android
         run: ./gradlew assembleDebug
+
+      - name: Expo prebuild (Android) then Gradle
+        if: steps.detect.outputs.mode == 'expo'
+        run: |
+          npx --yes expo@latest prebuild --platform android --no-install --non-interactive
+          cd android
+          ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
