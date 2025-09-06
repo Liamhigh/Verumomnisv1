@@ -32,9 +32,7 @@ jobs:
 
       - name: Install Android platforms/build-tools (explicit)
         run: |
-          sdkmanager "platform-tools" \
-                     "platforms;android-34" \
-                     "build-tools;34.0.0"
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
           yes | sdkmanager --licenses
 
       - name: Install JS deps
@@ -51,17 +49,13 @@ jobs:
           if [ -f android/gradlew ]; then
             echo "mode=gradle" >> "$GITHUB_OUTPUT"
           else
-            echo "mode=expo"   >> "$GITHUB_OUTPUT"
+            echo "mode=expo" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Expo prebuild (Android)  if needed
+      - name: Expo prebuild (Android) if needed
         if: steps.detect.outputs.mode == 'expo'
         run: |
-          npx --yes expo@latest prebuild \
-            --platform android \
-            --no-install \
-            --non-interactive
-          # After prebuild there must be an android/ folder:
+          npx --yes expo@latest prebuild --platform android --no-install --non-interactive
           test -f android/gradlew || (echo "android/gradlew missing after prebuild" && exit 1)
 
       - name: Print layout
@@ -73,17 +67,9 @@ jobs:
       - name: Gradle assembleDebug (with stacktrace)
         working-directory: android
         run: |
-          # Make Gradle more chatty and RAM-safe
           echo "org.gradle.jvmargs=-Xmx2048m -Dkotlin.daemon.jvm.options=-Xmx1024m" >> gradle.properties
           ./gradlew --version
           ./gradlew assembleDebug --stacktrace --no-daemon
-
-      - name: Find produced APK(s)
-        id: findapk
-        run: |
-          echo "APKS<<EOF" >> $GITHUB_OUTPUT
-          find android/app/build/outputs -type f -name "*.apk" -print
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
         if: always()
