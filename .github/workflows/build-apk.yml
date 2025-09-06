@@ -45,9 +45,9 @@ jobs:
         id: detect
         run: |
           if [ -f android/gradlew ]; then
-            echo "mode=gradle" >> $GITHUB_OUTPUT
+            echo "mode=gradle" >> "$GITHUB_OUTPUT"
           else
-            echo "mode=expo" >> $GITHUB_OUTPUT
+            echo "mode=expo" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build with Gradle (debug)
