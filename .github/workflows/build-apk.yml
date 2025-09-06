@@ -1,0 +1,58 @@
+name: Build Android APK (Expo prebuild -> Gradle debug)
+
+on:
+  push:
+    branches: [ "ci-build", "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses
+
+      # If your package-lock.json exists, CI install is faster & reproducible
+      - name: Install JS deps
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm i
+          fi
+
+      # Turn Expo project into native Android (no cloud; runs locally in CI)
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --no-install --non-interactive
+
+      # Build debug APK (signed with debug keystore automatically)
+      - name: Build app-debug.apk
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VerumOmnis-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
