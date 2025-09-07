@@ -1,31 +1,35 @@
 workflows:
-  android-firebase-workflow:
-    name: Build Android App + Firebase Hosting
+  android_debug:
+    name: Android Debug
     max_build_duration: 60
+    instance_type: linux_x2
     environment:
       vars:
-        ANDROID_HOME: /opt/android-sdk-linux
-        FIREBASE_TOKEN: Encrypted(your-token-here)
+        ANDROID_WORKDIR: "app"   # change if your Gradle root is different
       java: 17
-
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: "main"
+          include: true
+          source: true
     scripts:
-      - name: Install dependencies
-        script: ./gradlew dependencies
-
-      - name: Build Debug APK
-        script: ./gradlew assembleDebug
-
-      - name: Install Firebase CLI
-        script: npm install -g firebase-tools
-
-      - name: Deploy Firebase Hosting
-        script: firebase deploy --only hosting --token $FIREBASE_TOKEN
-
+      - name: Show files
+        script: |
+          pwd
+          ls -la
+          ls -la $ANDROID_WORKDIR || true
+      - name: Gradle wrapper permissions
+        script: |
+          chmod +x ./gradlew || true
+      - name: Build debug APK
+        script: |
+          ./gradlew :app:assembleDebug
     artifacts:
       - app/build/outputs/**/*.apk
-
-    publishing:
-      email:
-        recipients:
-          - "liamhigh78@gmail.com"
-
+      - app/build/outputs/**/*.aab
+    cache:
+      cache_paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
