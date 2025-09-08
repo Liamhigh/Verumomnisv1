@@ -1,7 +1,0 @@
-plugins {
-    // no root plugins
-}
-
-tasks.register("clean", Delete::class) {
-    delete(layout.buildDirectory)
-}
