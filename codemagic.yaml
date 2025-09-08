@@ -38,11 +38,11 @@ workflows:
           fi
 
           echo "Listing contents inside wrapper jar..."
-          unzip -l "${WRAP_JAR}" | head -n 20 || true
+          unzip -l "${WRAP_JAR}" | head -n 30 || true
 
-          # Do not fail hard on grep — just warn
+          # Warn instead of failing hard on grep
           unzip -l "${WRAP_JAR}" | grep "GradleWrapperMain.class" || echo "⚠ GradleWrapperMain.class not found in jar listing"
-          unzip -l "${WRAP_JAR}" | grep "IDownload.class" || echo "⚠ IDownload.class not found in jar listing"
+          unzip -l "${WRAP_JAR}" | grep "IDownload.class"        || echo "⚠ IDownload.class not found in jar listing"
 
           if [ -f "${WRAP_PROPS}" ]; then
             sed -i "s#^distributionUrl=.*#distributionUrl=${DIST_BIN_URL}#g" "${WRAP_PROPS}" || true
@@ -56,7 +56,7 @@ workflows:
       - name: Print versions
         script: |
           java -version
-          ./gradlew -v || echo "⚠ gradlew -v failed, will retry in next step"
+          ./gradlew -v || echo "⚠ gradlew -v failed (will try build anyway)"
 
       - name: Clean & build Debug APK
         script: |
