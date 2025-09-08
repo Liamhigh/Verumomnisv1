@@ -1,49 +1,20 @@
 workflows:
   android-app:
-    name: Android CI
+    name: Build Android Debug
     max_build_duration: 60
     environment:
       java: 17
       vars:
-        WRAPPER_GRADLE_VERSION: "8.7"
-
+        WRAPPER_GRADLE_VERSION: "8.9"
+    scripts:
+      - name: Gradle wrapper permissions
+        script: chmod +x ./gradlew
+      - name: Clean & build Debug APK
+        script: ./gradlew clean assembleDebug --no-daemon
+    artifacts:
+      - app/build/outputs/**/*.apk
+      - app/build/outputs/**/*.aab
     cache:
       cache_paths:
         - ~/.gradle/caches
         - ~/.gradle/wrapper
-
-    scripts:
-      - name: Show repo layout
-        script: |
-          pwd; ls -la
-          ls -la gradle || true
-          ls -la gradle/wrapper || true
-
-      - name: Gradle wrapper permissions
-        script: |
-          chmod +x gradlew
-          ls -l gradlew
-
-      - name: Ensure Gradle wrapper is usable (auto-fix if jar is tiny/missing)
-        script: |
-          set -euo pipefail
-          target="gradle/wrapper/gradle-wrapper.jar"
-          size=$(wc -c < "$target" 2>/dev/null || echo 0)
-          echo "Current wrapper jar size: $size bytes"
-
-          if [ "$size" -lt 20000 ] || [ "$size" -gt 150000 ]; then
-            echo "Repairing Gradle wrapper jar…"
-            v="${WRAPPER_GRADLE_VERSION:-8.7}"
-            curl -sSLo "gradle-${v}-bin.zip" "https://services.gradle.org/distributions/gradle-${v}-bin.zip"
-            unzip -q -j "gradle-${v}-bin.zip" "gradle-${v}/lib/plugins/gradle-wrapper-*.jar" -d gradle/wrapper/
-            mv -f gradle/wrapper/gradle-wrapper-*.jar "$target"
-          fi
-
-          unzip -l "$target" | grep -q "org/gradle/wrapper/GradleWrapperMain.class"
-          echo "Wrapper jar looks good."
-
-      - name: Clean & build Debug APK
-        script: ./gradlew --no-daemon --stacktrace --warning-mode=all clean :app:assembleDebug
-
-    artifacts:
-      - app/build/outputs/**/*.apk
