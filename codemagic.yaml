@@ -1,20 +1,91 @@
 workflows:
-  android-app:
-    name: Android App CI
+  android_debug:
+    name: Android Debug CI
     max_build_duration: 60
+    instance_type: linux_x2
     environment:
       java: 17
+      vars:
+        # adjust if your app module name isn't "app"
+        ANDROID_MODULE: "app"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: "main"
+          include: true
+          source: true
+
     scripts:
-      - name: Make gradlew executable
-        script: chmod +x ./gradlew
+      - name: Show repo layout
+        script: |
+          pwd
+          ls -la
+          ls -la $ANDROID_MODULE || true
+          ls -la gradle/wrapper || true
+
+      - name: Ensure Gradle wrapper is usable (auto-fix if jar is tiny/missing)
+        script: |
+          set -e
+          mkdir -p gradle/wrapper
+          WRAPPER_JAR="gradle/wrapper/gradle-wrapper.jar"
+
+          # If the jar is missing or suspiciously small (< 20KB), try to fetch a known-good one.
+          NEED_FETCH=0
+          if [ ! -f "$WRAPPER_JAR" ]; then
+            echo "⚠️  $WRAPPER_JAR is missing."
+            NEED_FETCH=1
+          else
+            SIZE=$(wc -c < "$WRAPPER_JAR" || echo 0)
+            echo "Current wrapper jar size: ${SIZE} bytes"
+            if [ "$SIZE" -lt 20000 ]; then
+              echo "⚠️  $WRAPPER_JAR looks too small; will try to replace."
+              NEED_FETCH=1
+            fi
+          fi
+
+          if [ "$NEED_FETCH" -eq 1 ]; then
+            echo "Attempting to download gradle-wrapper.jar from Maven Central…"
+            # Try a few versions (newest first). First successful download wins.
+            for V in 8.10.2 8.10.1 8.9 8.8 8.7 8.5; do
+              URL="https://repo1.maven.org/maven2/org/gradle/gradle-wrapper/${V}/gradle-wrapper-${V}.jar"
+              echo "→ $URL"
+              if curl -fL -o "$WRAPPER_JAR" "$URL"; then
+                echo "✅ Downloaded gradle-wrapper.jar v$V"
+                break
+              fi
+            done
+          fi
+
+          # If still too small and a system gradle is available, regenerate wrapper
+          SIZE=$(wc -c < "$WRAPPER_JAR" || echo 0)
+          if [ "$SIZE" -lt 20000 ]; then
+            if command -v gradle >/dev/null 2>&1; then
+              echo "Wrapper jar still invalid; using system Gradle to regenerate wrapper…"
+              gradle wrapper --gradle-version 8.7
+            else
+              echo "❌ Could not repair gradle-wrapper.jar and no system Gradle available."
+              exit 1
+            fi
+          fi
+
+          # Make gradlew executable and normalize line endings
+          chmod +x ./gradlew || true
+          sed -i 's/\r$//' gradlew || true
+
+          echo "Final wrapper state:"
+          ls -la gradle/wrapper || true
+          wc -c gradle/wrapper/gradle-wrapper.jar || true
+
       - name: Clean & build Debug APK
-        script: ./gradlew clean :app:assembleDebug --stacktrace
+        script: |
+          ./gradlew --no-daemon clean :$ANDROID_MODULE:assembleDebug --stacktrace
+
     artifacts:
-      - app/build/outputs/**/*.apk
-    publishing:
-      email:
-        recipients:
-          - your@email.com
-        notify:
-          success: true
-          failure: true
+      - $ANDROID_MODULE/build/outputs/**/*.apk
+      - $ANDROID_MODULE/build/outputs/**/*.aab
+
+    cache:
+      cache_paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
