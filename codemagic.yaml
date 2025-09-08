@@ -1,52 +1,71 @@
 workflows:
-  android_debug:
-    name: Android Debug
+  android-app:
+    name: Android CI
     max_build_duration: 60
-    instance_type: linux_x2
-
     environment:
-      # Codemagic has Android SDK preinstalled; Java 17 is the right LTS for AGP 8.x
       java: 17
-      vars:
-        ANDROID_WORKDIR: "."   # project root (change if your gradle root is different)
-
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: "main"
-          include: true
-          source: true
 
     scripts:
-      - name: Show repo contents
+      - name: Show repo layout
         script: |
-          pwd
           ls -la
           ls -la gradle || true
           ls -la gradle/wrapper || true
 
-      - name: Verify Gradle wrapper
+      - name: Verify Gradle wrapper (auto-fix if jar is tiny/missing)
         script: |
-          if [ ! -f gradlew ]; then echo "❌ Missing gradlew"; exit 1; fi
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "❌ Missing gradle-wrapper.jar"; exit 1; fi
+          set -euo pipefail
+          WRAP_DIR="gradle/wrapper"
+          WRAP_JAR="${WRAP_DIR}/gradle-wrapper.jar"
+          WRAP_PROPS="${WRAP_DIR}/gradle-wrapper.properties"
+          GRADLE_VERSION="8.9"
+          DIST_BIN_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          DIST_ALL_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-all.zip"
+
+          mkdir -p "${WRAP_DIR}"
+
+          size=0
+          if [ -f "${WRAP_JAR}" ]; then
+            size=$(wc -c < "${WRAP_JAR}" || echo 0)
+          fi
+
+          echo "Current wrapper jar size: ${size} bytes"
+
+          # Fix if jar missing or suspiciously small (<60 KB)
+          if [ ! -f "${WRAP_JAR}" ] || [ "${size}" -lt 60000 ]; then
+            echo "Fetching proper gradle-wrapper *.jar from ${DIST_ALL_URL} ..."
+            curl -fL -o gradle-all.zip "${DIST_ALL_URL}"
+            unzip -j gradle-all.zip "gradle-${GRADLE_VERSION}/lib/plugins/gradle-wrapper-*.jar" -d "${WRAP_DIR}"
+            mv "${WRAP_DIR}"/gradle-wrapper-*.jar "${WRAP_JAR}"
+          fi
+
+          # Make sure the jar actually contains the needed classes
+          echo "Verifying classes inside wrapper jar..."
+          unzip -l "${WRAP_JAR}" | grep -q "org/gradle/wrapper/GradleWrapperMain.class"
+          unzip -l "${WRAP_JAR}" | grep -q "org/gradle/wrapper/IDownload.class"
+
+          # Ensure distribution URL points to the same Gradle version
+          if [ -f "${WRAP_PROPS}" ]; then
+            sed -i "s#^distributionUrl=.*#distributionUrl=${DIST_BIN_URL}#g" "${WRAP_PROPS}" || true
+          fi
+
+      - name: Gradle wrapper permissions
+        script: |
           chmod +x ./gradlew
+          # normalize line endings (in case file was changed on Windows)
           sed -i 's/\r$//' gradlew
-          echo "✅ Wrapper present"
-          unzip -l gradle/wrapper/gradle-wrapper.jar | grep -E 'GradleWrapper(Main|IDownload).*class' || true
 
       - name: Print versions
         script: |
           java -version
-          ./gradlew --version
+          ./gradlew -v
 
       - name: Clean & build Debug APK
         script: |
-          ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew --no-daemon clean :app:assembleDebug --stacktrace
 
     artifacts:
       - app/build/outputs/**/*.apk
-      - app/build/outputs/**/*.aab
 
     cache:
       cache_paths:
