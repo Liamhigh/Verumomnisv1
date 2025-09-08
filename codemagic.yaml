@@ -3,8 +3,6 @@ workflows:
     name: Android App CI
     max_build_duration: 60
     environment:
-      android:
-        image: latest
       java: 17
     scripts:
       - name: Make gradlew executable
