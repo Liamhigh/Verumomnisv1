@@ -6,6 +6,7 @@ workflows:
       java: 17
       vars:
         WRAPPER_GRADLE_VERSION: "8.7"
+
     cache:
       cache_paths:
         - ~/.gradle/caches
@@ -19,7 +20,9 @@ workflows:
           ls -la gradle/wrapper || true
 
       - name: Gradle wrapper permissions
-        script: chmod +x ./gradlew && sed -i 's/\r$//' gradlew
+        script: |
+          chmod +x gradlew
+          ls -l gradlew
 
       - name: Ensure Gradle wrapper is usable (auto-fix if jar is tiny/missing)
         script: |
@@ -44,11 +47,3 @@ workflows:
 
     artifacts:
       - app/build/outputs/**/*.apk
-
-    publishing:
-      email:
-        recipients:
-          - your.address@example.com   # update or remove
-        notify:
-          success: true
-          failure: true
