@@ -1,15 +1,22 @@
 workflows:
-  android-ci:
-    name: Android CI
+  android-app:
+    name: Android App CI
     max_build_duration: 60
     environment:
-      vars:
-        GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+      android:
+        image: latest
       java: 17
     scripts:
       - name: Make gradlew executable
         script: chmod +x ./gradlew
-      - name: Clean and assemble Debug
-        script: ./gradlew clean :app:assembleDebug
+      - name: Clean & build Debug APK
+        script: ./gradlew clean :app:assembleDebug --stacktrace
     artifacts:
       - app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - your@email.com
+        notify:
+          success: true
+          failure: true
