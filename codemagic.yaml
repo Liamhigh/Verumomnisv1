@@ -1,19 +1,53 @@
 workflows:
-  android-app:
-    name: Build Android Debug
+  android_debug:
+    name: Android Debug
     max_build_duration: 60
+    instance_type: linux_x2
+
     environment:
+      # Codemagic has Android SDK preinstalled; Java 17 is the right LTS for AGP 8.x
       java: 17
       vars:
-        WRAPPER_GRADLE_VERSION: "8.9"
+        ANDROID_WORKDIR: "."   # project root (change if your gradle root is different)
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: "main"
+          include: true
+          source: true
+
     scripts:
-      - name: Gradle wrapper permissions
-        script: chmod +x ./gradlew
+      - name: Show repo contents
+        script: |
+          pwd
+          ls -la
+          ls -la gradle || true
+          ls -la gradle/wrapper || true
+
+      - name: Verify Gradle wrapper
+        script: |
+          if [ ! -f gradlew ]; then echo "❌ Missing gradlew"; exit 1; fi
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "❌ Missing gradle-wrapper.jar"; exit 1; fi
+          chmod +x ./gradlew
+          sed -i 's/\r$//' gradlew
+          echo "✅ Wrapper present"
+          unzip -l gradle/wrapper/gradle-wrapper.jar | grep -E 'GradleWrapper(Main|IDownload).*class' || true
+
+      - name: Print versions
+        script: |
+          java -version
+          ./gradlew --version
+
       - name: Clean & build Debug APK
-        script: ./gradlew clean assembleDebug --no-daemon
+        script: |
+          ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
+
     artifacts:
       - app/build/outputs/**/*.apk
       - app/build/outputs/**/*.aab
+
     cache:
       cache_paths:
         - ~/.gradle/caches
