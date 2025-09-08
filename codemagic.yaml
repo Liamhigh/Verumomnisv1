@@ -3,37 +3,24 @@ workflows:
     name: Android CI
     max_build_duration: 60
     environment:
-      android:
-        image: latest
-        java: 17
+      java: 17
       vars:
-        # Optional: set your Gradle version (only used by the repair step below)
         WRAPPER_GRADLE_VERSION: "8.7"
     cache:
       cache_paths:
         - ~/.gradle/caches
         - ~/.gradle/wrapper
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
 
     scripts:
-      # --- Diagnostics (optional but helpful)
       - name: Show repo layout
         script: |
           pwd; ls -la
           ls -la gradle || true
           ls -la gradle/wrapper || true
 
-      # --- Ensure gradlew is executable
       - name: Gradle wrapper permissions
         script: chmod +x ./gradlew && sed -i 's/\r$//' gradlew
 
-      # --- Ensure Gradle wrapper JAR is usable (auto-fix if tiny/missing)
       - name: Ensure Gradle wrapper is usable (auto-fix if jar is tiny/missing)
         script: |
           set -euo pipefail
@@ -41,7 +28,6 @@ workflows:
           size=$(wc -c < "$target" 2>/dev/null || echo 0)
           echo "Current wrapper jar size: $size bytes"
 
-          # Consider invalid if <20 KB or >150 KB (corrupt/misplaced)
           if [ "$size" -lt 20000 ] || [ "$size" -gt 150000 ]; then
             echo "Repairing Gradle wrapper jar…"
             v="${WRAPPER_GRADLE_VERSION:-8.7}"
@@ -50,14 +36,11 @@ workflows:
             mv -f gradle/wrapper/gradle-wrapper-*.jar "$target"
           fi
 
-          # Sanity check: must contain GradleWrapperMain.class
           unzip -l "$target" | grep -q "org/gradle/wrapper/GradleWrapperMain.class"
           echo "Wrapper jar looks good."
 
-      # --- Build with full warnings to see what to update
       - name: Clean & build Debug APK
-        script: |
-          ./gradlew --no-daemon --stacktrace --warning-mode=all clean :app:assembleDebug
+        script: ./gradlew --no-daemon --stacktrace --warning-mode=all clean :app:assembleDebug
 
     artifacts:
       - app/build/outputs/**/*.apk
@@ -65,7 +48,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - your.address@example.com   # <-- update or remove
+          - your.address@example.com   # update or remove
         notify:
           success: true
           failure: true
